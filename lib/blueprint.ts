@@ -49,13 +49,20 @@ export async function sendToBlueprint(lead: LeadInput, pageUrl?: string): Promis
   const secret = process.env.BLUEPRINT_WEBHOOK_SECRET
 
   // Not configured is a normal state — local dev, or other people's widgets.
-  if (!url || !secret) return
+  // Logged anyway: a silent no-op here is impossible to diagnose from outside.
+  if (!url || !secret) {
+    console.log(`[blueprint] skipped lead ${lead.id}: BLUEPRINT_WEBHOOK_URL/SECRET not set`)
+    return
+  }
 
   // Only 7 Layer Studio's own widget should trigger this. Without the guard,
   // every client widget on this platform would start emailing their leads a
   // blueprint from Julia, which would be a genuinely bad surprise.
   const onlyWidget = process.env.BLUEPRINT_WIDGET_ID
-  if (onlyWidget && lead.widgetId !== onlyWidget) return
+  if (onlyWidget && lead.widgetId !== onlyWidget) {
+    console.log(`[blueprint] skipped lead ${lead.id}: widget ${lead.widgetId} is not ${onlyWidget}`)
+    return
+  }
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
