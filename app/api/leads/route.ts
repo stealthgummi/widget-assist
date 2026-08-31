@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { sendToBlueprint } from '@/lib/blueprint'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -6,7 +7,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: Request) {
     try {
         const body = await request.json()
-        const { widgetId, name, email, interest, conversationId } = body
+        const { widgetId, name, email, interest, conversationId, pageUrl } = body
 
         // Validate required fields
         if (!widgetId || !name || !email || !interest) {
@@ -36,6 +37,10 @@ export async function POST(request: Request) {
             }
         })
 
+        // Hand the lead to the blueprint engine. Deliberately after the lead is
+        // safely stored, and deliberately unable to fail this request.
+        await sendToBlueprint(lead, pageUrl)
+
         return NextResponse.json({ success: true, lead }, { status: 201 })
     } catch (error) {
         console.error('Error creating lead:', error)
@@ -51,6 +56,7 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url)
         const widgetId = searchParams.get('widgetId')
+        const sinceParam = searchParams.get('since')
 
         if (!widgetId) {
             return NextResponse.json(
@@ -60,7 +66,12 @@ export async function GET(request: Request) {
         }
 
         const leads = await db.lead.findMany({
-            where: { widgetId },
+            where: {
+                widgetId,
+                ...(sinceParam && !isNaN(new Date(sinceParam).getTime()) 
+                    ? { createdAt: { gt: new Date(sinceParam) } } 
+                    : {})
+            },
             orderBy: { createdAt: 'desc' }
         })
 
